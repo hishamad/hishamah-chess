@@ -1,0 +1,11 @@
+[package]
+name = "chess_ui"
+version = "0.1.0"
+authors = ["Emil <gestsson@kth.se>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+orbtk = "0.3.1-alpha3"
+chess_engine = { path = "../chess_engine" }

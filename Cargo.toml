@@ -1,0 +1,19 @@
+[package]
+name = "hishamah-chess"
+version = "0.1.0"
+authors = ["Hisham Ahmed <hishamah@kth.se>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [
+    "chess_engine",
+    "chess_ui"
+]
+
+[[bin]]
+name = "chess_ui"
+path = "chess_ui/src/main.rs"
+
+[dependencies]
+orbtk = "0.3.1-alpha3"

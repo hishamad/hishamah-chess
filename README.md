@@ -1,1 +1,1 @@
-# hishamah-chess
+# Chess game

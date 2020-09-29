@@ -159,15 +159,6 @@ impl Board {
     ) {
         match self.board_squares[i][j].piece {
             Some(piece) => {
-                // Promotion
-                /*if piece.piece_type == piece::PieceType::Pawn && (j_2 == 7 || j_2 == 0) {
-                    self.promotion(
-                        (i, j),
-                        (i_2, j_2),
-                        piece::Piece::new(piece::PieceType::Queen, player_color),
-                    );
-                }*/
-
                 let availabe_moves = self.filter_available_moves((i, j), piece);
 
                 if availabe_moves.contains(&*vec![i_2, j_2]) {

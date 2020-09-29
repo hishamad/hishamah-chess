@@ -1,21 +1,35 @@
 use crate::board;
-use crate::piece;
+use crate::piece::*;
 use std::collections::HashSet;
 
 use std::io;
 #[derive(Clone, Debug)]
 pub struct Game {
     pub board: board::Board,
-    pub curr_player: piece::Color,
+    pub curr_player: Color,
+    pub promotable: Option<(usize, usize)>,
 }
 impl Game {
     pub fn new() -> Self {
         let mut game = Game {
             board: board::Board::new(),
-            curr_player: piece::Color::White,
+            curr_player: Color::White,
+            promotable: None,
         };
+
         game.board.init();
         game
+    }
+
+    pub fn promote(&mut self, kind: PieceType) {
+        if let Some((x, y)) = self.promotable {
+            let tile = &mut self.board.board_squares[x][y];
+            let color = tile.piece.unwrap().color;
+
+            tile.piece = Some(Piece::new(kind, color));
+        }
+
+        self.promotable = None;
     }
 
     pub fn get_available_moves(&mut self, (i, j): (usize, usize)) -> HashSet<Vec<usize>> {
@@ -28,11 +42,19 @@ impl Game {
     pub fn move_piece(&mut self, from: (usize, usize), to: (usize, usize)) {
         let x = self.board.history.len();
         self.board.move_piece(from, to, self.curr_player);
-        
+
+        if to.1 == 0 || to.1 == 7 {
+            if let Some(piece) = self.board.board_squares[to.0][to.1].piece {
+                if piece.piece_type == PieceType::Pawn {
+                    self.promotable = Some(to);
+                }
+            }
+        }
+
         if x < self.board.history.len() {
             match self.curr_player {
-                piece::Color::Black => self.curr_player = piece::Color::White,
-                piece::Color::White => self.curr_player = piece::Color::Black,
+                Color::Black => self.curr_player = Color::White,
+                Color::White => self.curr_player = Color::Black,
             }
         }
     }
@@ -66,8 +88,8 @@ impl Game {
                 .update_board(input_1_tuple, input_2_tuple, curr_player);
             if !play_again {
                 match curr_player {
-                    piece::Color::Black => curr_player = piece::Color::White,
-                    piece::Color::White => curr_player = piece::Color::Black,
+                    Color::Black => curr_player = Color::White,
+                    Color::White => curr_player = Color::Black,
                 }
             }
             // Check for winner
@@ -75,8 +97,8 @@ impl Game {
 
             if checkmate {
                 let winner = match curr_player {
-                    piece::Color::Black => piece::Color::White,
-                    piece::Color::White => piece::Color::Black,
+                    Color::Black => Color::White,
+                    Color::White => Color::Black,
                 };
                 println!("The winner is {:?}", winner);
                 break;
@@ -110,16 +132,16 @@ pub fn get_input() -> (char, char, Option<u32>) {
     input_tuple
 }
 
-pub fn format_input(input: (char, char, Option<u32>)) -> (usize, usize, piece::PieceType) {
+pub fn format_input(input: (char, char, Option<u32>)) -> (usize, usize, PieceType) {
     let (p, c, r) = input;
 
     let piece_type = match p {
-        'r' => piece::PieceType::Rook,
-        'n' => piece::PieceType::Knight,
-        'b' => piece::PieceType::Bishop,
-        'q' => piece::PieceType::Queen,
-        'k' => piece::PieceType::King,
-        _ => piece::PieceType::Pawn,
+        'r' => PieceType::Rook,
+        'n' => PieceType::Knight,
+        'b' => PieceType::Bishop,
+        'q' => PieceType::Queen,
+        'k' => PieceType::King,
+        _ => PieceType::Pawn,
     };
 
     let i: usize = match c {

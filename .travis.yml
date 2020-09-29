@@ -4,6 +4,7 @@ before_install:
   - sudo apt update
   - sudo apt-get install -y libudev-dev
   - sudo apt install -y pkg-config
+  - sudo apt install -y xkbcommon-sys
 script:
   - cargo build --verbose --workspace
   - cargo test --verbose --workspace

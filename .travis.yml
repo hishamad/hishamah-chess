@@ -3,3 +3,4 @@ cache: cargo
 script:
   - cargo build --verbose --workspace
   - cargo test --verbose --workspace
+  - cargo clippy --verbose --workspace -- -D warnings

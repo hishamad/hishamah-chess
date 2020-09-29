@@ -17,3 +17,4 @@ path = "chess_ui/src/main.rs"
 
 [dependencies]
 orbtk = "0.3.1-alpha3"
+chess_engine = { path = "./chess_engine" }

@@ -5,20 +5,20 @@ use popups::*;
 use orbtk::prelude::*;
 use orbtk::widgets::behaviors::MouseBehavior;
 
-use std::collections::VecDeque;
-use std::collections::HashSet;
-use chess_engine::game::Game;
 use chess_engine::board::Square;
+use chess_engine::game::Game;
+use chess_engine::piece::Color as PieceColor;
 use chess_engine::piece::Piece;
 use chess_engine::piece::PieceType;
-use chess_engine::piece::Color as PieceColor;
+use std::collections::HashSet;
+use std::collections::VecDeque;
 
-const default_tiles : (&str, &str) = (colors::LINK_WATER_COLOR, colors::SLATE_GRAY_COLOR);
-const walkable_tiles : (&str, &str) = ("#66ff66", "#33cc33");
-const attackable_tiles : (&str, &str) = ("#ff3300", "#991f00");
-const selected_tile : (&str, &str) = ("#ffff00", "#cccc00");
+const default_tiles: (&str, &str) = (colors::LINK_WATER_COLOR, colors::SLATE_GRAY_COLOR);
+const walkable_tiles: (&str, &str) = ("#66ff66", "#33cc33");
+const attackable_tiles: (&str, &str) = ("#ff3300", "#991f00");
+const selected_tile: (&str, &str) = ("#ffff00", "#cccc00");
 
-fn piece_to_char(color : PieceColor, kind : PieceType) -> String{
+fn piece_to_char(color: PieceColor, kind: PieceType) -> String {
     let a = if color == PieceColor::Black { "B" } else { "W" };
     let b = match kind {
         PieceType::Bishop => "B",
@@ -26,7 +26,7 @@ fn piece_to_char(color : PieceColor, kind : PieceType) -> String{
         PieceType::Pawn => "P",
         PieceType::Queen => "Q",
         PieceType::Rook => "R",
-        PieceType::Knight => "KN"
+        PieceType::Knight => "KN",
     };
 
     return a.to_owned() + b;
@@ -48,20 +48,20 @@ impl Template for ChessTile {
             .background(id)
             .child(
                 MouseBehavior::new()
-                .pressed(id)
-                .enabled(id)
-                .target(id.0)
-                .build(ctx)
+                    .pressed(id)
+                    .enabled(id)
+                    .target(id.0)
+                    .build(ctx),
             )
             .child(
                 TextBlock::new()
-                .h_align("center")
-                .v_align("center")
-                .id(name)
-                .font_size(34)
-                .foreground(Brush::from("#000000"))
-                .text("bruh")
-                .build(ctx)
+                    .h_align("center")
+                    .v_align("center")
+                    .id(name)
+                    .font_size(34)
+                    .foreground(Brush::from("#000000"))
+                    .text("bruh")
+                    .build(ctx),
             )
     }
 
@@ -71,26 +71,25 @@ impl Template for ChessTile {
 }
 
 #[derive(Debug, Clone)]
-enum Action{
+enum Action {
     PressTile((usize, usize)),
     VictoryRoyale(String),
     Restart,
-    ShowPromotion((usize, usize)),
-    PromoteTile((usize, usize), PieceType)
+    ShowPromotion(),
+    PromoteTile(PieceType),
 }
 
 #[derive(AsAny)]
 struct ChessState {
-    actions : VecDeque<Action>,
-    board : Game,
-    attackable : Option<HashSet<Vec<usize>>>,
+    actions: VecDeque<Action>,
+    board: Game,
+    attackable: Option<HashSet<Vec<usize>>>,
     selected: Option<(usize, usize)>,
-    win_popup: Option<Entity>,
-    promote_popup: Option<Entity>
+    popup: Option<Entity>
 }
 
 impl Default for ChessState {
-    fn default() -> Self{
+    fn default() -> Self {
         let game = Game::new();
 
         ChessState {
@@ -98,8 +97,7 @@ impl Default for ChessState {
             board: game,
             selected: None,
             attackable: None,
-            win_popup: None,
-            promote_popup: None
+            popup: None,
         }
     }
 }
@@ -107,7 +105,7 @@ impl Default for ChessState {
 impl State for ChessState {
     fn update(&mut self, _: &mut Registry, ctx: &mut Context) {
         while self.actions.len() > 0 {
-            let action = self.actions.pop_front().unwrap(); 
+            let action = self.actions.pop_front().unwrap();
             match action {
                 Action::PressTile(point) => {
                     self.press_tile(ctx, point);
@@ -116,42 +114,39 @@ impl State for ChessState {
                 Action::VictoryRoyale(text) => {
                     let current_entity = ctx.entity;
                     let build = &mut ctx.build_context();
-                    
+
                     let popup = popup_win(current_entity, build, text);
-                    self.win_popup = Some(popup);
+                    self.popup = Some(popup);
 
                     build.append_child(current_entity, popup);
                 }
                 Action::Restart => {
-                    if let Some(popup) = self.win_popup {
+                    if let Some(popup) = self.popup {
                         ctx.remove_child(popup);
                     }
-                    
-                    self.win_popup = None;
+
+                    self.popup = None;
                     self.board = Game::new();
                     self.attackable = None;
                     self.selected = None;
 
                     self.update_backgrounds(ctx);
                 }
-                Action::ShowPromotion(point) => {
+                Action::ShowPromotion() => {
                     let current_entity = ctx.entity;
                     let build = &mut ctx.build_context();
-                    
-                    let popup = popup_promote(current_entity, build, point);
-                    self.promote_popup = Some(popup);
+
+                    let popup = popup_promote(current_entity, build);
+                    self.popup = Some(popup);
 
                     build.append_child(current_entity, popup);
                 }
-                Action::PromoteTile(point, kind) => {
-                    if let Some(popup) = self.promote_popup {
+                Action::PromoteTile(kind) => {
+                    if let Some(popup) = self.popup {
                         ctx.remove_child(popup);
                     }
 
-                    let tile = &mut self.board.board.board_squares[point.0][point.1]; 
-                    let color = tile.piece.unwrap().color;
-
-                    tile.piece = Some(Piece::new(kind, color));
+                    self.board.promote(kind);
                     self.update_backgrounds(ctx);
                 }
             }
@@ -164,14 +159,14 @@ impl State for ChessState {
 }
 
 impl ChessState {
-    pub fn action(&mut self, action : Action){
+    pub fn action(&mut self, action: Action) {
         self.actions.push_front(action);
     }
 
-    pub fn press_tile(&mut self, ctx : &mut Context, point: (usize, usize)){
+    pub fn press_tile(&mut self, ctx: &mut Context, point: (usize, usize)) {
         if self.selected.is_none() {
             if let Some(piece) = self.board.board.board_squares[point.0][point.1].piece {
-                if piece.color != self.board.curr_player{
+                if piece.color != self.board.curr_player {
                     return;
                 }
 
@@ -184,14 +179,11 @@ impl ChessState {
 
         let vp = vec![point.0, point.1];
         if let Some(attackable) = self.attackable.as_ref() {
-            if attackable.contains(&vp){
+            if attackable.contains(&vp) {
                 self.board.move_piece(self.selected.unwrap(), point);
 
-                //closed UI poggers
-                if point.1 == 7 || point.1 == 0 {
-                    if self.board.board.board_squares[point.0][point.1].piece.unwrap().piece_type == PieceType::Pawn {
-                        self.action(Action::ShowPromotion(point));
-                    }
+                if self.board.promotable.is_some() {
+                    self.action(Action::ShowPromotion());
                 }
 
                 let (checkmate, stalemate) = self.board.check_for_win();
@@ -199,7 +191,7 @@ impl ChessState {
                 if checkmate {
                     let team = match self.board.curr_player {
                         PieceColor::White => "Black",
-                        PieceColor::Black => "White"
+                        PieceColor::Black => "White",
                     };
 
                     self.action(Action::VictoryRoyale(format!("{} wins", team)));
@@ -215,10 +207,10 @@ impl ChessState {
         }
     }
 
-    pub fn update_backgrounds(&mut self, ctx : &mut Context){
-        for i in 0..8{
-            for j in 0..8{
-                let point = (i,j);
+    pub fn update_backgrounds(&mut self, ctx: &mut Context) {
+        for i in 0..8 {
+            for j in 0..8 {
+                let point = (i, j);
                 self.color_tile(ctx, point, default_tiles);
 
                 self.attach_piece(point, ctx);
@@ -245,7 +237,7 @@ impl ChessState {
         }
     }
 
-    fn attach_piece(&mut self, point : (usize, usize), ctx : &mut Context){ 
+    fn attach_piece(&mut self, point: (usize, usize), ctx: &mut Context) {
         let mut text = "".to_owned();
         if let Some(piece) = self.get_piece(point) {
             text = piece_to_char(piece.color, piece.piece_type);
@@ -255,14 +247,14 @@ impl ChessState {
         TextBlock::get(text_widget).set_text(text);
     }
 
-    fn color_tile(&self, ctx : &mut Context, point : (usize, usize), pallette : (&str, &str)){
+    fn color_tile(&self, ctx: &mut Context, point: (usize, usize), pallette: (&str, &str)) {
         let mut tile = ctx.child(get_id(point).as_str());
-        
+
         tile.set::<Brush>("background", get_color(point, pallette));
     }
 
-    fn get_piece(&self, (x, y) : (usize, usize)) -> Option<Piece>{
-        return self.board.board.board_squares[x][y].piece
+    fn get_piece(&self, (x, y): (usize, usize)) -> Option<Piece> {
+        return self.board.board.board_squares[x][y].piece;
     }
 }
 
@@ -272,27 +264,27 @@ widget!(
     }
 );
 
-fn get_id((x,y) : (usize, usize)) -> String{
+fn get_id((x, y): (usize, usize)) -> String {
     format!("{}{}", x, y)
 }
 
-fn get_text(point : (usize, usize)) -> String {
+fn get_text(point: (usize, usize)) -> String {
     get_id(point) + "text"
 }
 
-fn get_color((x,y) : (usize, usize), palette : (&str, &str)) -> Brush{
-    let color = if (x + y%2) % 2 == 0 {
+fn get_color((x, y): (usize, usize), palette: (&str, &str)) -> Brush {
+    let color = if (x + y % 2) % 2 == 0 {
         palette.0
-    } else{
-        palette.1        
+    } else {
+        palette.1
     };
 
     Brush::from(color)
 }
 
 impl ChessBoard {
-    fn create_tile(&self, ctx : &mut BuildContext, id : Entity, x : usize, y : usize) -> Entity {
-        let point = (x,y);
+    fn create_tile(&self, ctx: &mut BuildContext, id: Entity, x: usize, y: usize) -> Entity {
+        let point = (x, y);
 
         ChessTile::new()
             //alpha4 kommer med WidgetContainer children :)
@@ -301,7 +293,7 @@ impl ChessBoard {
             .attach(Grid::row(y))
             .attach(Grid::column(x))
             .on_click(move |state, _| {
-                let cs : &mut ChessState = state.get_mut(id);
+                let cs: &mut ChessState = state.get_mut(id);
                 cs.action(Action::PressTile((x, y)));
 
                 true
@@ -317,54 +309,49 @@ impl Template for ChessBoard {
             .rows(matrix_rows(h))
             .background(colors::LYNCH_COLOR)
             .columns(matrix_columns(w));
-            
+
         for i in 0..8 {
-            for j in 0..8{
+            for j in 0..8 {
                 grid = grid.child(self.create_tile(ctx, id, i, j));
             }
         }
 
-        self.name("ChessGrid")
-        .child(
-            grid.build(ctx)
-        )
+        self.name("ChessGrid").child(grid.build(ctx))
     }
 }
 
-
-fn matrix_rows(height : i32) -> RowsBuilder {
+fn matrix_rows(height: i32) -> RowsBuilder {
     let size = height / 8;
     let mut ret = Rows::create();
 
     for i in 0..8 {
         ret = ret.push(size);
     }
-    
+
     ret
 }
 
-fn matrix_columns(width : i32) -> ColumnsBuilder {
+fn matrix_columns(width: i32) -> ColumnsBuilder {
     let size = width / 8;
     let mut ret = Columns::create();
 
     for i in 0..8 {
         ret = ret.push(size);
     }
-    
+
     ret
 }
 
-const w : i32 = 512;
-const h : i32 = 512;
+const w: i32 = 512;
+const h: i32 = 512;
 fn main() {
-    Application::new().window(move |ctx|{
-        Window::new()
-            .title("Chess")
-            .size(w, h)
-            .child(
-                ChessBoard::new()
+    Application::new()
+        .window(move |ctx| {
+            Window::new()
+                .title("Chess")
+                .size(w, h)
+                .child(ChessBoard::new().build(ctx))
                 .build(ctx)
-            )
-            .build(ctx)
-    }).run();
+        })
+        .run();
 }

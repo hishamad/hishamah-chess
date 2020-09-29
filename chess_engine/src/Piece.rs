@@ -134,9 +134,10 @@ impl Piece {
         {
             let col = loc.1 as i32 + (1 * team);
             let col = usize::try_from(col).unwrap();
-            if board
-                .clone()
-                .blocked_by_enemy((loc.0 - 1, loc.1), self.clone().color)
+            if loc.0 != 0
+                && board
+                    .clone()
+                    .blocked_by_enemy((loc.0 - 1, loc.1), self.clone().color)
                 && board.history[board.history.len() - 1] == vec![loc.0 - 1, loc.1]
             {
                 available_moves.insert([loc.0 - 1, col].to_vec());
@@ -147,9 +148,10 @@ impl Piece {
                     promotion: false,
                 });
             }
-            if board
-                .clone()
-                .blocked_by_enemy((loc.0 + 1, loc.1), self.clone().color)
+            if loc.0 != 7
+                && board
+                    .clone()
+                    .blocked_by_enemy((loc.0 + 1, loc.1), self.clone().color)
                 && board.history[board.history.len() - 1] == vec![loc.0 + 1, loc.1]
             {
                 available_moves.insert([loc.0 + 1, col].to_vec());

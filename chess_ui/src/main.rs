@@ -85,8 +85,7 @@ struct ChessState {
     board: Game,
     attackable: Option<HashSet<Vec<usize>>>,
     selected: Option<(usize, usize)>,
-    win_popup: Option<Entity>,
-    promote_popup: Option<Entity>,
+    popup: Option<Entity>
 }
 
 impl Default for ChessState {
@@ -98,8 +97,7 @@ impl Default for ChessState {
             board: game,
             selected: None,
             attackable: None,
-            win_popup: None,
-            promote_popup: None,
+            popup: None,
         }
     }
 }
@@ -118,16 +116,16 @@ impl State for ChessState {
                     let build = &mut ctx.build_context();
 
                     let popup = popup_win(current_entity, build, text);
-                    self.win_popup = Some(popup);
+                    self.popup = Some(popup);
 
                     build.append_child(current_entity, popup);
                 }
                 Action::Restart => {
-                    if let Some(popup) = self.win_popup {
+                    if let Some(popup) = self.popup {
                         ctx.remove_child(popup);
                     }
 
-                    self.win_popup = None;
+                    self.popup = None;
                     self.board = Game::new();
                     self.attackable = None;
                     self.selected = None;
@@ -139,12 +137,12 @@ impl State for ChessState {
                     let build = &mut ctx.build_context();
 
                     let popup = popup_promote(current_entity, build);
-                    self.promote_popup = Some(popup);
+                    self.popup = Some(popup);
 
                     build.append_child(current_entity, popup);
                 }
                 Action::PromoteTile(kind) => {
-                    if let Some(popup) = self.promote_popup {
+                    if let Some(popup) = self.popup {
                         ctx.remove_child(popup);
                     }
 

@@ -246,16 +246,14 @@ impl Board {
 
         // Filter moves for the other pieces if it's a checkmate
         if piece.piece_type != piece::PieceType::King {
-            if self.is_king_attacked(piece.color) {
-                for i in available_moves.clone() {
-                    let mut fake_board = self.clone();
-                    let (x, y) = self.find_piece(piece.piece_type, piece.color);
-                    fake_board.board_squares[i[0]][i[1]].piece =
-                        Some(piece::Piece::new(piece.piece_type, piece.color));
-                    fake_board.board_squares[x][y].piece = None;
-                    if fake_board.is_king_attacked(piece.color) {
-                        available_moves.remove(&[i[0], i[1]].to_vec());
-                    }
+            for i in available_moves.clone() {
+                let mut fake_board = self.clone();
+                let (x, y) = self.find_piece(piece.piece_type, piece.color);
+                fake_board.board_squares[i[0]][i[1]].piece =
+                    Some(piece::Piece::new(piece.piece_type, piece.color));
+                fake_board.board_squares[x][y].piece = None;
+                if fake_board.is_king_attacked(piece.color) {
+                    available_moves.remove(&[i[0], i[1]].to_vec());
                 }
             }
         }

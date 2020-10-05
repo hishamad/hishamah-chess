@@ -3,12 +3,19 @@ use crate::piece::*;
 use std::collections::HashSet;
 
 use std::io;
+
+pub enum CastlingSide {
+    QueenSide,
+    KingSide,
+}
+
 #[derive(Clone, Debug)]
 pub struct Game {
     pub board: board::Board,
     pub curr_player: Color,
     pub promotable: Option<(usize, usize)>,
 }
+
 impl Game {
     pub fn new() -> Self {
         let mut game = Game {
@@ -21,15 +28,42 @@ impl Game {
         game
     }
 
-    pub fn promote(&mut self, kind: PieceType) {
-        if let Some((x, y)) = self.promotable {
+    pub fn promote(&mut self, kind: PieceType) -> bool {
+        let promotable = std::mem::replace(&mut self.promotable, None);
+
+        if let Some((x, y)) = promotable {
             let tile = &mut self.board.board_squares[x][y];
             let color = tile.piece.unwrap().color;
 
             tile.piece = Some(Piece::new(kind, color));
+            return true;
         }
 
-        self.promotable = None;
+        false
+    }
+
+    pub fn castle(&mut self, side: CastlingSide) -> bool {
+        let (kingside, queenside) = self.board.castling(self.curr_player);
+        use CastlingSide::*;
+
+        let allowed = match side {
+            KingSide => kingside,
+            QueenSide => queenside,
+        };
+
+        if !allowed {
+            return false;
+        }
+
+        let x = match side {
+            KingSide => 6,
+            QueenSide => 2,
+        };
+
+        let king = self.board.find_piece(PieceType::King, self.curr_player);
+
+        self.move_piece(king, (x, king.1));
+        true
     }
 
     pub fn get_available_moves(&mut self, (i, j): (usize, usize)) -> HashSet<Vec<usize>> {

@@ -1,5 +1,5 @@
-mod popups;
 mod network;
+mod popups;
 
 use network::*;
 use popups::*;
@@ -87,7 +87,7 @@ struct ChessState {
     board: Game,
     attackable: Option<HashSet<Vec<usize>>>,
     selected: Option<(usize, usize)>,
-    popup: Option<Entity>
+    popup: Option<Entity>,
 }
 
 impl Default for ChessState {

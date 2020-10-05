@@ -1,5 +1,7 @@
 mod popups;
+mod network;
 
+use network::*;
 use popups::*;
 
 use orbtk::prelude::*;

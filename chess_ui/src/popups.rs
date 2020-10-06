@@ -93,3 +93,5 @@ fn promote_tile(id: Entity, ctx: &mut BuildContext, text: String, kind: PieceTyp
         })
         .build(ctx)
 }
+
+pub fn popup_start(id: Entity, ctx: &mut BuildContext, ip: String) {}

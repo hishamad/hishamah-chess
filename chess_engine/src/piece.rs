@@ -152,7 +152,7 @@ impl Piece {
                 && board
                     .clone()
                     .blocked_by_enemy((loc.0 + 1, loc.1), self.clone().color)
-                && board.history[board.history.len() - 1] == vec![loc.0 + 1, loc.1]
+                && board.history[board.history.len() - 2] == vec![loc.0 + 1, loc.1]
             {
                 available_moves.insert([loc.0 + 1, col].to_vec());
                 match board.board_squares[loc.0][loc.1].piece {

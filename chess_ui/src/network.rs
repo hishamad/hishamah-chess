@@ -32,7 +32,7 @@ pub enum NetEvent {
 }
 
 pub struct ChessNet {
-    host: bool,
+    pub host: bool,
     stream: TcpStream,
     w_in: mpsc::Sender<NetEvent>,
     r_out: mpsc::Receiver<NetEvent>,
@@ -69,6 +69,7 @@ impl ChessNet {
         let read_thread = spawn(move || {
             let mut buf = [0; 32];
             while let Ok(read) = rstream.read(&mut buf) {
+                println!("recieved message, len {}", read);
                 if read == 0 {
                     break;
                 }
@@ -79,9 +80,10 @@ impl ChessNet {
 
         let send_thread = spawn(move || {
             while let Ok(read) = r_writer.recv() {
-                println!("recieved message {:?}", read);
+                println!("sending message {:?}", read);
 
                 wstream.write(&encode_event(read)).expect("write failed");
+                wstream.flush();
             }
         });
 
@@ -142,6 +144,10 @@ pub fn parse_index(index: u8) -> (usize, usize) {
     (index % 8, index / 8)
 }
 
+pub fn encode_index((x, y) : (usize, usize)) -> u8 {
+    (y as u8 * 8) + x as u8
+}
+
 pub fn parse_piece(id: u8) -> Option<PieceType> {
     if id > 5 {
         return None;
@@ -155,6 +161,19 @@ pub fn parse_piece(id: u8) -> Option<PieceType> {
         4 => PieceType::Queen,
         _ => PieceType::King,
     })
+}
+
+pub fn encode_piece(kind : PieceType) -> u8 {
+    use PieceType::*;
+
+    match kind {
+        Pawn => 0,
+        Knight => 1,
+        Bishop => 2,
+        Rook => 3,
+        Queen => 4,
+        King => 5
+    }
 }
 
 pub fn encode_event(e: NetEvent) -> Vec<u8> {

@@ -77,6 +77,8 @@ enum Action {
     PressTile((usize, usize)),
     VictoryRoyale(String),
     Restart,
+    ClosePopups,
+    Connect,
     ShowPromotion(),
     PromoteTile(PieceType),
 }
@@ -84,10 +86,14 @@ enum Action {
 #[derive(AsAny)]
 struct ChessState {
     actions: VecDeque<Action>,
+    netevents: VecDeque<NetEvent>,
     board: Game,
     attackable: Option<HashSet<Vec<usize>>>,
     selected: Option<(usize, usize)>,
     popup: Option<Entity>,
+    ipbox: Option<Entity>,
+    ip: String,
+    network: Option<ChessNet>
 }
 
 impl Default for ChessState {
@@ -96,25 +102,37 @@ impl Default for ChessState {
 
         ChessState {
             actions: VecDeque::new(),
+            netevents: VecDeque::new(),
             board: game,
             selected: None,
             attackable: None,
             popup: None,
+            ipbox: None,
+            ip: "127.0.0.1:80".to_owned(),
+            network: None
         }
     }
 }
 
 impl State for ChessState {
     fn update(&mut self, _: &mut Registry, ctx: &mut Context) {
+        self.poll_network();
+
+        while self.netevents.len() > 0 {
+            let event = self.netevents.pop_front().unwrap();
+
+            self.handle_netevent(event);
+        }
+
         while self.actions.len() > 0 {
             let action = self.actions.pop_front().unwrap();
+            let current_entity = ctx.entity;
             match action {
                 Action::PressTile(point) => {
                     self.press_tile(ctx, point);
                     self.update_backgrounds(ctx);
                 }
                 Action::VictoryRoyale(text) => {
-                    let current_entity = ctx.entity;
                     let build = &mut ctx.build_context();
 
                     let popup = popup_win(current_entity, build, text);
@@ -126,13 +144,26 @@ impl State for ChessState {
                     if let Some(popup) = self.popup {
                         ctx.remove_child(popup);
                     }
+                    let build = &mut ctx.build_context();
 
-                    self.popup = None;
+                    let (ipbox, popup) = popup_start(current_entity, build, self.ip.clone());
+                    self.popup = Some(popup);
+                    self.ipbox = Some(ipbox);
+
+                    build.append_child(current_entity, popup);
+
                     self.board = Game::new();
                     self.attackable = None;
                     self.selected = None;
 
                     self.update_backgrounds(ctx);
+                }
+                Action::ClosePopups => {
+                    if let Some(popup) = self.popup {
+                        ctx.remove_child(popup);
+                    }
+
+                    self.popup = None;
                 }
                 Action::ShowPromotion() => {
                     let current_entity = ctx.entity;
@@ -150,13 +181,32 @@ impl State for ChessState {
 
                     self.board.promote(kind);
                     self.update_backgrounds(ctx);
+
+                    let history = &self.board.board.history;
+                    let (from, to) = (&history[history.len() - 2], &history[history.len() - 1]);
+
+                    self.send_move(MoveEvent::Promotion(
+                        encode_index((from[0], from[1])),
+                        encode_index((to[0], to[1])),
+                        encode_piece(kind)
+                    ));
+                }
+                Action::Connect => {
+                    if let Some(ipbox) = self.ipbox {
+                        let child = ctx.get_widget(ipbox);
+                        let textctx = TextBox::get(child);
+
+                        self.ip = textctx.text().as_string();
+                        self.connect();
+                    }
                 }
             }
         }
     }
 
     fn init(&mut self, _registry: &mut Registry, _ctx: &mut Context) {
-        self.update_backgrounds(_ctx);
+        self.action(Action::Restart);
+        self.update(_registry, _ctx);
     }
 }
 
@@ -165,7 +215,80 @@ impl ChessState {
         self.actions.push_front(action);
     }
 
+    pub fn connect(&mut self) {
+        if let Ok(res) = ChessNet::connect(self.ip.clone()) {
+            self.network = Some(res);
+        }
+    }
+
+    pub fn host(&mut self) {
+        if let Ok(res) = ChessNet::host("127.0.0.1:80".to_owned()) {
+            self.network = Some(res);
+        }
+    }
+
+    pub fn handle_netevent(&mut self, e : NetEvent){
+        match e {
+            NetEvent::Move(mv) => {
+                match mv {
+                    MoveEvent::Standard(p1, p2) => {
+                        let from = parse_index(p1);
+                        let to = parse_index(p2);
+
+                        if self.board.get_available_moves(from).contains(&vec![to.0, to.1]) {
+                            self.board.move_piece(from, to);
+                        }else{
+                            self.send(NetEvent::Decline);
+                        }
+                    },
+                    MoveEvent::Promotion(p1, p2, kind) => {
+                        let from = parse_index(p1);
+                        let to = parse_index(p2);
+
+                        if self.board.get_available_moves(from).contains(&vec![to.0, to.1]) {
+                            self.board.move_piece(from, to);
+                            self.board.promote(parse_piece(kind).unwrap());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn send_move(&mut self, event : MoveEvent){
+        self.send(NetEvent::Move(event));
+    }
+
+    pub fn send(&mut self, event : NetEvent) {
+        if let Some(net) = self.network.as_mut() {
+            net.send(event);
+        } 
+    }
+
+    pub fn poll_network(&mut self) {
+        if let Some(net) = self.network.as_mut() {
+            self.netevents.append(&mut net.read());
+        }
+    }
+
+    pub fn can_interact(&self) -> bool {
+        if let Some(net) = &self.network {
+            return match self.board.curr_player {
+                PieceColor::White => net.host,
+                PieceColor::Black => !net.host
+            }
+        }
+
+        true
+    }
+
     pub fn press_tile(&mut self, ctx: &mut Context, point: (usize, usize)) {
+        if !self.can_interact() {
+            return;
+        }
+
         if self.selected.is_none() {
             if let Some(piece) = self.board.board.board_squares[point.0][point.1].piece {
                 if piece.color != self.board.curr_player {
@@ -186,6 +309,8 @@ impl ChessState {
 
                 if self.board.promotable.is_some() {
                     self.action(Action::ShowPromotion());
+                }else{
+                    self.send_move(MoveEvent::Standard( encode_index(self.selected.unwrap()), encode_index(point)));
                 }
 
                 let (checkmate, stalemate) = self.board.check_for_win();
@@ -196,10 +321,12 @@ impl ChessState {
                         PieceColor::Black => "White",
                     };
 
+                    self.send(NetEvent::Checkmate);
                     self.action(Action::VictoryRoyale(format!("{} wins", team)));
                 }
 
                 if stalemate {
+                    self.send(NetEvent::Draw);
                     self.action(Action::VictoryRoyale("Stalemate :(".to_owned()));
                 }
             }

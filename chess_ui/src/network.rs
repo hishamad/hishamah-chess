@@ -28,16 +28,13 @@ pub enum NetEvent {
     Checkmate,
     Draw,
     Resign,
-    Other,
+    Disconnect,
 }
 
 pub struct ChessNet {
     pub host: bool,
     stream: TcpStream,
-    w_in: mpsc::Sender<NetEvent>,
-    r_out: mpsc::Receiver<NetEvent>,
-    sender_thread: JoinHandle<()>,
-    reciever_thread: JoinHandle<()>,
+    read_channel: mpsc::Receiver<NetEvent>,
 }
 
 impl ChessNet {
@@ -61,12 +58,9 @@ impl ChessNet {
 
     pub fn new(stream: TcpStream, host: bool) -> Self {
         let (w_reader, r_reader) = mpsc::channel::<NetEvent>();
-        let (w_writer, r_writer) = mpsc::channel::<NetEvent>();
-
-        let mut wstream = stream.try_clone().ok().unwrap();
         let mut rstream = stream.try_clone().ok().unwrap();
 
-        let read_thread = spawn(move || {
+        spawn(move || {
             let mut buf = [0; 32];
             while let Ok(read) = rstream.read(&mut buf) {
                 println!("recieved message, len {}", read);
@@ -74,36 +68,33 @@ impl ChessNet {
                     break;
                 }
 
-                w_reader.send(parse_incoming(&buf)).expect("read failed");
+                w_reader
+                    .send(parse_incoming(&buf))
+                    .expect("couldn't write to channel");
             }
-        });
 
-        let send_thread = spawn(move || {
-            while let Ok(read) = r_writer.recv() {
-                println!("sending message {:?}", read);
-
-                wstream.write(&encode_event(read)).expect("write failed");
-                wstream.flush();
-            }
+            w_reader
+                .send(NetEvent::Disconnect)
+                .expect("couldn't write to channel");
         });
 
         Self {
             stream: stream,
-            w_in: w_writer,
-            r_out: r_reader,
-            reciever_thread: read_thread,
-            sender_thread: send_thread,
+            read_channel: r_reader,
             host: host,
         }
     }
 
     pub fn send(&mut self, event: NetEvent) {
-        self.w_in.send(event);
+        self.stream
+            .write(&encode_event(event))
+            .expect("failed write");
     }
 
     pub fn read(&mut self) -> VecDeque<NetEvent> {
         let mut queue = VecDeque::<NetEvent>::new();
-        while let Ok(read) = self.r_out.try_recv() {
+
+        while let Ok(read) = self.read_channel.try_recv() {
             println!("sucessfully read {:?}", read);
 
             queue.push_front(read);
@@ -134,7 +125,7 @@ fn parse_incoming(buffer: &Buffer) -> NetEvent {
         4 => NetEvent::Checkmate,
         5 => NetEvent::Draw,
         6 => NetEvent::Resign,
-        _ => NetEvent::Other,
+        _ => NetEvent::Disconnect,
     }
 }
 
@@ -144,7 +135,7 @@ pub fn parse_index(index: u8) -> (usize, usize) {
     (index % 8, index / 8)
 }
 
-pub fn encode_index((x, y) : (usize, usize)) -> u8 {
+pub fn encode_index((x, y): (usize, usize)) -> u8 {
     (y as u8 * 8) + x as u8
 }
 
@@ -163,7 +154,7 @@ pub fn parse_piece(id: u8) -> Option<PieceType> {
     })
 }
 
-pub fn encode_piece(kind : PieceType) -> u8 {
+pub fn encode_piece(kind: PieceType) -> u8 {
     use PieceType::*;
 
     match kind {
@@ -172,7 +163,7 @@ pub fn encode_piece(kind : PieceType) -> u8 {
         Bishop => 2,
         Rook => 3,
         Queen => 4,
-        King => 5
+        King => 5,
     }
 }
 

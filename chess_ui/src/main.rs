@@ -8,7 +8,7 @@ use orbtk::prelude::*;
 use orbtk::widgets::behaviors::MouseBehavior;
 
 use chess_engine::board::Square;
-use chess_engine::game::Game;
+use chess_engine::game::*;
 use chess_engine::piece::Color as PieceColor;
 use chess_engine::piece::Piece;
 use chess_engine::piece::PieceType;
@@ -93,7 +93,7 @@ struct ChessState {
     popup: Option<Entity>,
     ipbox: Option<Entity>,
     ip: String,
-    network: Option<ChessNet>
+    network: Option<ChessNet>,
 }
 
 impl Default for ChessState {
@@ -109,7 +109,7 @@ impl Default for ChessState {
             popup: None,
             ipbox: None,
             ip: "127.0.0.1:80".to_owned(),
-            network: None
+            network: None,
         }
     }
 }
@@ -156,6 +156,9 @@ impl State for ChessState {
                     self.attackable = None;
                     self.selected = None;
 
+                    self.network = None;
+                    self.netevents.clear();
+
                     self.update_backgrounds(ctx);
                 }
                 Action::ClosePopups => {
@@ -188,7 +191,7 @@ impl State for ChessState {
                     self.send_move(MoveEvent::Promotion(
                         encode_index((from[0], from[1])),
                         encode_index((to[0], to[1])),
-                        encode_piece(kind)
+                        encode_piece(kind),
                     ));
                 }
                 Action::Connect => {
@@ -227,44 +230,75 @@ impl ChessState {
         }
     }
 
-    pub fn handle_netevent(&mut self, e : NetEvent){
+    pub fn handle_netevent(&mut self, e: NetEvent) {
         match e {
-            NetEvent::Move(mv) => {
-                match mv {
-                    MoveEvent::Standard(p1, p2) => {
-                        let from = parse_index(p1);
-                        let to = parse_index(p2);
+            NetEvent::Move(mv) => match mv {
+                MoveEvent::Standard(p1, p2) => {
+                    let from = parse_index(p1);
+                    let to = parse_index(p2);
 
-                        if self.board.get_available_moves(from).contains(&vec![to.0, to.1]) {
-                            self.board.move_piece(from, to);
-                        }else{
-                            self.send(NetEvent::Decline);
-                        }
-                    },
-                    MoveEvent::Promotion(p1, p2, kind) => {
-                        let from = parse_index(p1);
-                        let to = parse_index(p2);
-
-                        if self.board.get_available_moves(from).contains(&vec![to.0, to.1]) {
-                            self.board.move_piece(from, to);
-                            self.board.promote(parse_piece(kind).unwrap());
-                        }
+                    if self
+                        .board
+                        .get_available_moves(from)
+                        .contains(&vec![to.0, to.1])
+                    {
+                        self.board.move_piece(from, to);
+                    } else {
+                        self.send(NetEvent::Decline);
                     }
-                    _ => {}
                 }
+                MoveEvent::Promotion(p1, p2, kind) => {
+                    let from = parse_index(p1);
+                    let to = parse_index(p2);
+
+                    if self
+                        .board
+                        .get_available_moves(from)
+                        .contains(&vec![to.0, to.1])
+                    {
+                        self.board.move_piece(from, to);
+                        self.board.promote(parse_piece(kind).unwrap());
+                    }
+                }
+                MoveEvent::KingsideCastle => {
+                    if !self.board.castle(CastlingSide::KingSide) {
+                        self.send(NetEvent::Decline);
+                    }
+                }
+                MoveEvent::QueensideCastle => {
+                    if !self.board.castle(CastlingSide::QueenSide) {
+                        self.send(NetEvent::Decline);
+                    }
+                }
+                _ => {}
+            },
+            NetEvent::Checkmate => {
+                let team = match self.board.curr_player {
+                    PieceColor::White => "Black",
+                    PieceColor::Black => "White",
+                };
+
+                self.action(Action::ClosePopups);
+                self.action(Action::VictoryRoyale(format!("{} wins", team)));
+            }
+            NetEvent::Disconnect => {
+                self.action(Action::Restart);
+            }
+            NetEvent::Decline => {
+                self.action(Action::Restart);
             }
             _ => {}
         }
     }
 
-    pub fn send_move(&mut self, event : MoveEvent){
+    pub fn send_move(&mut self, event: MoveEvent) {
         self.send(NetEvent::Move(event));
     }
 
-    pub fn send(&mut self, event : NetEvent) {
+    pub fn send(&mut self, event: NetEvent) {
         if let Some(net) = self.network.as_mut() {
             net.send(event);
-        } 
+        }
     }
 
     pub fn poll_network(&mut self) {
@@ -277,8 +311,8 @@ impl ChessState {
         if let Some(net) = &self.network {
             return match self.board.curr_player {
                 PieceColor::White => net.host,
-                PieceColor::Black => !net.host
-            }
+                PieceColor::Black => !net.host,
+            };
         }
 
         true
@@ -309,8 +343,11 @@ impl ChessState {
 
                 if self.board.promotable.is_some() {
                     self.action(Action::ShowPromotion());
-                }else{
-                    self.send_move(MoveEvent::Standard( encode_index(self.selected.unwrap()), encode_index(point)));
+                } else {
+                    self.send_move(MoveEvent::Standard(
+                        encode_index(self.selected.unwrap()),
+                        encode_index(point),
+                    ));
                 }
 
                 let (checkmate, stalemate) = self.board.check_for_win();

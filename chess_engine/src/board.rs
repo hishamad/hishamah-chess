@@ -559,7 +559,7 @@ impl Board {
 
                         self.board_squares[i_2][j_2].piece =
                             Some(piece::Piece::new(piece_type, player_color));
-                        
+
                         self.history.push(vec![i, j]);
                         self.history.push(vec![i_2, j_2]);
 

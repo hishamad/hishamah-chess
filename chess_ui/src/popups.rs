@@ -1,4 +1,5 @@
 use super::*;
+use crate::chess_widget::*;
 use orbtk::prelude::*;
 
 pub fn popup_win(id: Entity, ctx: &mut BuildContext, text: String) -> Entity {

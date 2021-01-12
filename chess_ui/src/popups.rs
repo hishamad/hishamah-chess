@@ -1,4 +1,5 @@
 use super::*;
+use crate::chess_widget::*;
 use orbtk::prelude::*;
 
 pub fn popup_win(id: Entity, ctx: &mut BuildContext, text: String) -> Entity {
@@ -92,4 +93,79 @@ fn promote_tile(id: Entity, ctx: &mut BuildContext, text: String, kind: PieceTyp
             true
         })
         .build(ctx)
+}
+
+pub fn popup_start(id: Entity, ctx: &mut BuildContext, ip: String) -> (Entity, Entity) {
+    let ipbox = TextBox::new().text(ip).id("ipbox").build(ctx);
+
+    (
+        ipbox,
+        Popup::new()
+            .target(id)
+            .open(true)
+            .child(
+                Container::new()
+                    .margin((0, 100, 0, 0))
+                    .h_align("center")
+                    .child(
+                        Grid::new()
+                            .rows(
+                                Rows::create()
+                                    .push("auto")
+                                    .push(50)
+                                    .push("auto")
+                                    .push(50)
+                                    .push("*"),
+                            )
+                            .child(
+                                Button::new()
+                                    .text("Play Local")
+                                    .on_click(move |state, _| {
+                                        let cs: &mut ChessState = state.get_mut(id);
+                                        cs.action(Action::ClosePopups);
+
+                                        true
+                                    })
+                                    .attach(Grid::row(0))
+                                    .build(ctx),
+                            )
+                            .child(
+                                Button::new()
+                                    .text("host session")
+                                    .attach(Grid::row(2))
+                                    .on_click(move |state, _| {
+                                        let cs: &mut ChessState = state.get_mut(id);
+                                        cs.action(Action::ClosePopups);
+                                        cs.host();
+
+                                        true
+                                    })
+                                    .build(ctx),
+                            )
+                            .child(
+                                Stack::new()
+                                    .h_align("center")
+                                    .spacing(5)
+                                    .attach(Grid::row(4))
+                                    .child(ipbox)
+                                    .child(
+                                        Button::new()
+                                            .text("join session")
+                                            .on_click(move |state, _| {
+                                                let cs: &mut ChessState = state.get_mut(id);
+                                                cs.action(Action::Connect);
+                                                cs.action(Action::ClosePopups);
+
+                                                true
+                                            })
+                                            .build(ctx),
+                                    )
+                                    .build(ctx),
+                            )
+                            .build(ctx),
+                    )
+                    .build(ctx),
+            )
+            .build(ctx),
+    )
 }

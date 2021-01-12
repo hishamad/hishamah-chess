@@ -179,6 +179,7 @@ impl Board {
                         Some(piece::Piece::new(piece.clone().piece_type, player_color));
                     self.board_squares[i][j].piece = None;
 
+                    self.history.push(vec![i, j]);
                     self.history.push(vec![i_2, j_2]);
                 }
             }
@@ -559,6 +560,7 @@ impl Board {
                         self.board_squares[i_2][j_2].piece =
                             Some(piece::Piece::new(piece_type, player_color));
 
+                        self.history.push(vec![i, j]);
                         self.history.push(vec![i_2, j_2]);
 
                         &self.clone().display();
